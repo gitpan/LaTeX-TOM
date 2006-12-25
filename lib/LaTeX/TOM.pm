@@ -2,7 +2,7 @@
 #
 # LaTeX::TOM (TeX Object Model)
 #
-# Version 0.3
+# Version 0.4
 #
 # ----------------------------------------------------------------------------
 #
@@ -84,7 +84,7 @@
 
 package LaTeX::TOM;
 
-our $VERSION = '0.3';
+our $VERSION = '0.4';
 
 use strict;
 use vars qw{%INNERCMDS %MATHENVS %MATHBRACKETS %MATHBRACKETS %BRACELESS %TEXTENVS $PARSE_ERRORS_FATAL};
@@ -248,7 +248,7 @@ use LaTeX::TOM::Parser;
 
 =head1 NAME
 
-LaTeX::TOM (TeX Object Model) v0.3 - A module for parsing, analyzing, and manipulating LaTeX documents.
+LaTeX::TOM - A module for parsing, analyzing, and manipulating LaTeX documents.
 
 =head1 SYNOPSIS
 

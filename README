@@ -1,6 +1,6 @@
 NAME
-    LaTeX::TOM (TeX Object Model) v0.3 - A module for parsing, analyzing,
-    and manipulating LaTeX documents.
+    LaTeX::TOM - A module for parsing, analyzing, and manipulating LaTeX
+    documents.
 
 SYNOPSIS
       use LaTeX::TOM;
