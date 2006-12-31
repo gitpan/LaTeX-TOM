@@ -14,477 +14,477 @@ use vars qw{%INNERCMDS %MATHENVS %MATHBRACKETS %MATHBRACKETS %BRACELESS %TEXTENV
 # Constructor
 #
 sub Parser::new {
-	my $class = shift;
+    my $class = shift;
 
-	my $self = {};
+    my $self = {};
 
-	bless $self, $class;
+    bless $self, $class;
 
-	$self->init(@_);
+    $self->init(@_);
 
-	return $self;	
+    return $self;
 }
 
 # Set/reset "globals"
 #
 sub Parser::init {
-	my $parser = $_[0];
+    my $parser = $_[0];
 
-	my $parse_errors_fatal = (defined $_[1] ? $_[1] : $PARSE_ERRORS_FATAL);
-	my $readinputs = (defined $_[2] ? $_[2] : 0);
-	my $applymappings = (defined $_[3] ? $_[3] : 0);
-	
-	# set user options
-	#
-	$parser->{readinputs} = $readinputs;
-	$parser->{applymappings} = $applymappings;
-	$parser->{PARSE_ERRORS_FATAL} = $parse_errors_fatal;
-	
-	# init internal stuff
-	#
-	$parser->{MATHBRACKETS} = {%MATHBRACKETS};
+    my $parse_errors_fatal = (defined $_[1] ? $_[1] : $PARSE_ERRORS_FATAL);
+    my $readinputs = (defined $_[2] ? $_[2] : 0);
+    my $applymappings = (defined $_[3] ? $_[3] : 0);
 
-	# this will hold a running list/hash of commands that have been remapped
-	$parser->{MAPPEDCMDS} = {};
+    # set user options
+    #
+    $parser->{readinputs} = $readinputs;
+    $parser->{applymappings} = $applymappings;
+    $parser->{PARSE_ERRORS_FATAL} = $parse_errors_fatal;
 
-	# this will hold a running list/hash of commands that have been used.	We dont
-	#	bother apply mappings except to commands that have been used.
-	$parser->{USED_COMMANDS} = {};
+    # init internal stuff
+    #
+    $parser->{MATHBRACKETS} = {%MATHBRACKETS};
 
-	# no file yet
-	$parser->{file} = undef;
+    # this will hold a running list/hash of commands that have been remapped
+    $parser->{MAPPEDCMDS} = {};
+
+    # this will hold a running list/hash of commands that have been used. We dont
+    # bother apply mappings except to commands that have been used.
+    $parser->{USED_COMMANDS} = {};
+
+    # no file yet
+    $parser->{file} = undef;
 }
 
-# Parse a LaTeX file, return a tree.	You probably want this method.
+# Parse a LaTeX file, return a tree. You probably want this method.
 #
 sub Parser::parseFile {
-	my $parser = shift;
-	my $filename = shift;
+    my $parser = shift;
+    my $filename = shift;
 
-	# init variables
-	#
-	$parser->{file} = $filename;		# file name member data
-	my $tree = [];									# init output tree
+    # init variables
+    #
+    $parser->{file} = $filename;        # file name member data
+    my $tree = [];                      # init output tree
 
-	# read in text from file
-	#
-	my $text = readFile($filename);
+    # read in text from file
+    #
+    my $text = readFile($filename);
 
-	# do the parse or bomb out
-	#
-	if ($text) {
-		$tree = $parser->parse($text);
-	} else {
-		die "Could not read file $filename !";
-	}
+    # do the parse or bomb out
+    #
+    if ($text) {
+        $tree = $parser->parse($text);
+    } else {
+        die "Could not read file $filename !";
+    }
 
-	return $tree;
+    return $tree;
 }
 
 # main parsing entrypoint
 #
 sub Parser::parse {
-	my $parser = shift;
-	
-	my $text = shift;
+    my $parser = shift;
 
-	# first half of parsing (goes up to finding commands, reading inputs)
-	#
-	my ($tree, $bracehash) = $parser->parseA($text);
+    my $text = shift;
 
-	#print "done with parseA\n";
-	#$tree->print();
+    # first half of parsing (goes up to finding commands, reading inputs)
+    #
+    my ($tree, $bracehash) = $parser->parseA($text);
 
-	# handle mappings
-	#
-	$parser->applyMappings($tree) if $parser->{applymappings};
-	
-	#print "done with applyMappings\n";
-	#$tree->print();
+    #print "done with parseA\n";
+    #$tree->print();
 
-	# second half of parsing (environments)
-	#
-	$parser->parseB($tree);
+    # handle mappings
+    #
+    $parser->applyMappings($tree) if $parser->{applymappings};
 
-	#print "done with parseB\n";
-	#$tree->print();
-	
-	# once all the above is done we can propegate math/plaintext modes down
-	#
-	$parser->propegateModes($tree, 0, 0);					# math = 0, plaintext = 0
+    #print "done with applyMappings\n";
+    #$tree->print();
 
-	#print "done with propegateModes\n";
-	#$tree->print();
+    # second half of parsing (environments)
+    #
+    $parser->parseB($tree);
 
-	# handle kooky \[ \] math mode
-	#
-	if (not exists $parser->{MAPPEDCMDS}->{'\\['}) {
-																							# math mode (\[ \], \( \))
-		$parser->stage5($tree, {'\\[' => '\\]', '\\(' => '\\)'}, 1); 
-		$parser->propegateModes($tree, 0, 0);		 # have to do this again of course
-		$parser->{MATHBRACKETS}->{'\\['} = '\\]'; # put back in brackets list for
-		$parser->{MATHBRACKETS}->{'\\('} = '\\)'; # printing purposes.
-	}
-	
-	#$tree->print();
-	
-	$tree->listify;		# add linked-list stuff
+    #print "done with parseB\n";
+    #$tree->print();
 
-	return $tree;
+    # once all the above is done we can propegate math/plaintext modes down
+    #
+    $parser->propegateModes($tree, 0, 0);   # math = 0, plaintext = 0
+
+    #print "done with propegateModes\n";
+    #$tree->print();
+
+    # handle kooky \[ \] math mode
+    #
+    if (not exists $parser->{MAPPEDCMDS}->{'\\['}) {
+        # math mode (\[ \], \( \))
+        $parser->stage5($tree, {'\\[' => '\\]', '\\(' => '\\)'}, 1);
+        $parser->propegateModes($tree, 0, 0);     # have to do this again of course
+        $parser->{MATHBRACKETS}->{'\\['} = '\\]'; # put back in brackets list for
+        $parser->{MATHBRACKETS}->{'\\('} = '\\)'; # printing purposes.
+    }
+
+    #$tree->print();
+
+    $tree->listify;     # add linked-list stuff
+
+    return $tree;
 }
 
 # Parsing with no mappings and no externally accessible parser object.
 #
 sub Parser::basicparse {
-	my $text = shift;
-	
-	my $parse_errors_fatal = (defined $_[0] ? $_[0] : $PARSE_ERRORS_FATAL);
-	my $readinputs = (defined $_[1] ? $_[1] : 1);
+    my $text = shift;
 
-	my $parser = Parser->new($parse_errors_fatal, $readinputs);
-	my ($tree, $bracehash) = $parser->parseA($text); 
+    my $parse_errors_fatal = (defined $_[0] ? $_[0] : $PARSE_ERRORS_FATAL);
+    my $readinputs = (defined $_[1] ? $_[1] : 1);
 
-	$parser->parseB($tree);													
+    my $parser = Parser->new($parse_errors_fatal, $readinputs);
+    my ($tree, $bracehash) = $parser->parseA($text); 
 
-	$tree->listify;	 # add linked-list stuff
-	
-	return ($tree, $bracehash);
+    $parser->parseB($tree);
+
+    $tree->listify; # add linked-list stuff
+
+    return ($tree, $bracehash);
 }
 
-# start the tree.	separate out comment and text nodes.
+# start the tree. separate out comment and text nodes.
 #
 sub Parser::stage1 {
-	my $parser = shift;
-	my $text = shift;
+    my $parser = shift;
+    my $text = shift;
 
-	my @nodes = getTextAndCommentNodes($text, 0, length($text));
+    my @nodes = getTextAndCommentNodes($text, 0, length($text));
 
-	return Tree->new([@nodes]);
+    return Tree->new([@nodes]);
 }
 
 # this stage parses the braces ({}) and adds the corresponding structure to
 # the tree.
 #
 sub Parser::stage2 {
-	my $parser = shift;
+    my $parser = shift;
 
-	my $tree = shift;
-	my $bracehash = shift || undef;
-	my $startidx = shift || 0;	 # last two params for starting at some specific
-	my $startpos = shift || 0;	 # node and offset.	
+    my $tree = shift;
+    my $bracehash = shift || undef;
+    my $startidx = shift || 0;      # last two params for starting at some specific
+    my $startpos = shift || 0;      # node and offset.
 
-	my %blankhash;
+    my %blankhash;
 
-	if (not defined $bracehash) {
-		$bracehash = {%blankhash};
-	}
+    if (not defined $bracehash) {
+        $bracehash = {%blankhash};
+    }
 
-	my $leftidx = -1;
-	my $leftpos = -1;
-	my $leftcount = 0;
-	
-	# loop through the nodes
-	for (my $i = $startidx; $i < @$tree; $i++) {
-		my $node = $tree->[$i];
-		my $spos = $node->{start};	# get text start position 
-		
-		# set position placeholder within the text block
-		my $pos = ($i == $startidx) ? $startpos : 0;
-			
-		if ($node->{type} eq 'TEXT') {
-				 
-		 #warn "parseStage2: looking at text node: [$node->{content}]";
-		 my ($nextpos, $brace) = findbrace($node->{content}, $pos);
-		 while ($nextpos != -1) {
-			
-			$pos = $nextpos + 1;	# update position pointer
+    my $leftidx = -1;
+    my $leftpos = -1;
+    my $leftcount = 0;
 
-			# handle left brace
-			if ($brace eq '{') {
-				#warn "found '{' at position $nextpos, leftcount is $leftcount";
-				if ($leftcount == 0) {
-					$leftpos = $nextpos;
-					$leftidx = $i
-				}
-				$leftcount++;
-			} 
+    # loop through the nodes
+    for (my $i = $startidx; $i < @$tree; $i++) {
+        my $node = $tree->[$i];
+        my $spos = $node->{start};	# get text start position 
 
-			# handle right brance
-			elsif ($brace eq '}') {
-				
-				#warn "found '}' at position $nextpos , leftcount is $leftcount";
-				my $rightpos = $nextpos;
-				$leftcount--;
-				
-				# found the corresponding right brace to our starting left brace
-				if ($leftcount == 0) {
-					
-					# see if we have to split the text node into 3 parts
-					#
-					if ($leftidx == $i) {
-						
-						my ($leftside, $textnode3) = $node->split($rightpos, $rightpos);
-						my ($textnode1, $textnode2) = $leftside->split($leftpos, $leftpos);
+        # set position placeholder within the text block
+        my $pos = ($i == $startidx) ? $startpos : 0;
 
-						# make the new GROUP node
-						my $groupnode = Node->new(
-							{type => 'GROUP',
-							 start => $textnode2->{start} - 1,
-							 end => $textnode2->{end} + 1,
-							 children => Tree->new([$textnode2])
-							});
-															
-						# splice the new subtree into the old location
-						splice @$tree, $i, 1, $textnode1, $groupnode, $textnode3;
-			
-						# add to the brace-pair lookup table
-						$bracehash->{$groupnode->{start}} = $groupnode->{end};
-						$bracehash->{$groupnode->{end}} = $groupnode->{start};
+        if ($node->{type} eq 'TEXT') {
 
-						# recur into new child node
-						$parser->stage2($groupnode->{children}, $bracehash);
+         #warn "parseStage2: looking at text node: [$node->{content}]";
+         my ($nextpos, $brace) = findbrace($node->{content}, $pos);
+         while ($nextpos != -1) {
 
-						$i++;	 # skip to textnode3 for further processing
-					} 
-						
-					# split across nodes
-					#
-					else {
-							
-						my ($textnode1, $textnode2) = $tree->[$leftidx]->split($leftpos, $leftpos);
-						my ($textnode3, $textnode4) = $node->split($rightpos, $rightpos);
-						
-						# remove nodes in between the node we found '{' in and the node
-						#	we found '}' in
-						#
-						my @removed = splice @$tree, $leftidx+1, $i-$leftidx-1;
+            $pos = $nextpos + 1; # update position pointer
 
-						# create a group node that contains the text after the left brace,
-						#	then all the nodes up until the next text node, then the text
-						#	before the right brace.	
-						#
-						my $groupnode = Node->new(
-							{type => 'GROUP',
-							 start => $textnode2->{start} - 1,
-							 end => $textnode3->{end} + 1,
-							 children => Tree->new(
-								[$textnode2, 
-								 @removed,
-								 $textnode3])});
+            # handle left brace
+            if ($brace eq '{') {
+                #warn "found '{' at position $nextpos, leftcount is $leftcount";
+                if ($leftcount == 0) {
+                    $leftpos = $nextpos;
+                    $leftidx = $i
+                }
+                $leftcount++;
+            }
 
-						# replace the two original text nodes with the leftover left and
-						#	right portions, as well as the group node with everything in
-						#	the middle.
-						# 
-						splice @$tree, $leftidx, 2, $textnode1, $groupnode, $textnode4;
-						
-						# add to the brace-pair lookup table
-						$bracehash->{$groupnode->{start}} = $groupnode->{end};
-						$bracehash->{$groupnode->{end}} = $groupnode->{start};
+            # handle right brance
+            elsif ($brace eq '}') {
 
-						# recur into new child nodes
-						$parser->stage2($groupnode->{children}, $bracehash);
+                #warn "found '}' at position $nextpos , leftcount is $leftcount";
+                my $rightpos = $nextpos;
+                $leftcount--;
 
-						# step back to textnode4 on this level for further processing
-						$i -= scalar @removed;
-					} 
+                # found the corresponding right brace to our starting left brace
+                if ($leftcount == 0) {
 
-					$leftpos = -1;	# reset left data
-					$leftidx = -1;
-					last;
-				} # $leftcount == 0
+                    # see if we have to split the text node into 3 parts
+                    #
+                    if ($leftidx == $i) {
 
-				# check for '}'-based error
-				#
-				if ($leftcount < 0) {
-					if ($parser->{PARSE_ERRORS_FATAL} == 1) {
-						die "parse error: '}' before '{' at ".($spos+$rightpos).".";
-					} elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
-						warn "parse error: '}' before '{' at ".($spos+$rightpos).".";
-					}
-					# reset and continue
-					$leftcount = 0;
-				}
-			} # right brace
-		 
-			($nextpos, $brace) = findbrace($node->{content}, $pos);
-			
-		 }	# while (braces left)
-		 
-		} # if TEXT
-		
-	} # loop over all nodes
-		
-	# check for extra '{' parse error
-	#
-	if ($leftcount > 0) {
-		my $spos = $tree->[$leftidx]->{start};	# get text start position 
-		if ($parser->{PARSE_ERRORS_FATAL} == 1) {
-			die "parse error: unmatched '{' at ".($spos+$leftpos).".";
-		} elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
-			warn "parse error: unmatched '{' at ".($spos+$leftpos).".";
-		}
-		# try to continue on, after the offending brace
-		$parser->stage2($tree, $bracehash, $leftidx, $leftpos + 1);
-	}
+                        my ($leftside, $textnode3) = $node->split($rightpos, $rightpos);
+                        my ($textnode1, $textnode2) = $leftside->split($leftpos, $leftpos);
 
-	return $bracehash;
+                        # make the new GROUP node
+                        my $groupnode = Node->new(
+                            {type => 'GROUP',
+                             start => $textnode2->{start} - 1,
+                             end => $textnode2->{end} + 1,
+                             children => Tree->new([$textnode2])
+                            });
+
+                        # splice the new subtree into the old location
+                        splice @$tree, $i, 1, $textnode1, $groupnode, $textnode3;
+
+                        # add to the brace-pair lookup table
+                        $bracehash->{$groupnode->{start}} = $groupnode->{end};
+                        $bracehash->{$groupnode->{end}} = $groupnode->{start};
+
+                        # recur into new child node
+                        $parser->stage2($groupnode->{children}, $bracehash);
+
+                        $i++; # skip to textnode3 for further processing
+                    }
+
+                    # split across nodes
+                    #
+                    else {
+
+                        my ($textnode1, $textnode2) = $tree->[$leftidx]->split($leftpos, $leftpos);
+                        my ($textnode3, $textnode4) = $node->split($rightpos, $rightpos);
+
+                        # remove nodes in between the node we found '{' in and the node
+                        # we found '}' in
+                        #
+                        my @removed = splice @$tree, $leftidx+1, $i-$leftidx-1;
+
+                        # create a group node that contains the text after the left brace,
+                        # then all the nodes up until the next text node, then the text
+                        # before the right brace.
+                        #
+                        my $groupnode = Node->new(
+                            {type => 'GROUP',
+                             start => $textnode2->{start} - 1,
+                             end => $textnode3->{end} + 1,
+                             children => Tree->new(
+                                [$textnode2, 
+                                 @removed,
+                                 $textnode3])});
+
+                        # replace the two original text nodes with the leftover left and
+                        # right portions, as well as the group node with everything in
+                        # the middle.
+                        #
+                        splice @$tree, $leftidx, 2, $textnode1, $groupnode, $textnode4;
+
+                        # add to the brace-pair lookup table
+                        $bracehash->{$groupnode->{start}} = $groupnode->{end};  
+                        $bracehash->{$groupnode->{end}} = $groupnode->{start};
+
+                        # recur into new child nodes
+                        $parser->stage2($groupnode->{children}, $bracehash);
+
+                        # step back to textnode4 on this level for further processing
+                        $i -= scalar @removed;
+                    }
+
+                    $leftpos = -1; # reset left data
+                    $leftidx = -1;
+                    last;
+                } # $leftcount == 0
+
+                # check for '}'-based error
+                #
+                if ($leftcount < 0) {
+                    if ($parser->{PARSE_ERRORS_FATAL} == 1) {
+                        die "parse error: '}' before '{' at ".($spos+$rightpos).".";
+                    } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
+                        warn "parse error: '}' before '{' at ".($spos+$rightpos).".";
+                    }
+                    # reset and continue
+                    $leftcount = 0;
+                }
+            } # right brace
+
+            ($nextpos, $brace) = findbrace($node->{content}, $pos);
+
+         } # while (braces left)
+
+         } # if TEXT
+
+    } # loop over all nodes
+
+    # check for extra '{' parse error
+    #
+    if ($leftcount > 0) {
+        my $spos = $tree->[$leftidx]->{start};	# get text start position 
+        if ($parser->{PARSE_ERRORS_FATAL} == 1) {
+            die "parse error: unmatched '{' at ".($spos+$leftpos).".";
+        } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
+            warn "parse error: unmatched '{' at ".($spos+$leftpos).".";
+        }
+        # try to continue on, after the offending brace
+        $parser->stage2($tree, $bracehash, $leftidx, $leftpos + 1);
+    }
+
+    return $bracehash;
 }
 
 # this stage finds LaTeX commands and accordingly turns GROUP nodes into
-#	command nodes, labeled with the command
+# command nodes, labeled with the command
 #
 sub Parser::stage3 {
-	my $parser = shift;
-	
-	my $tree = shift;
-	my $parent = shift;
+    my $parser = shift;
 
-	for (my $i = 0; $i< @$tree; $i++) {
+    my $tree = shift;
+    my $parent = shift;
 
-		my $node = $tree->[$i];
+    for (my $i = 0; $i< @$tree; $i++) {
 
-		# check text node for command tag
-		if ($node->{type} eq 'TEXT') {
-			my $text = $node->{content};
+        my $node = $tree->[$i];
 
-			# inner command (such as {\command text text}). our regexp checks to see 
-			#	if this text chunk begins with \command, since that would be the case
-			#	due to the previous parsing stages.	if found, the parent node is 
-			#	promoted to a command.
-			#
-			if ($text =~ /^\s*\\(\w+)/ && defined $parent && defined $INNERCMDS{$1}) {
-				my $command = $1;
+        # check text node for command tag
+        if ($node->{type} eq 'TEXT') {
+            my $text = $node->{content};
 
-				# if the parent is already a command node, we have to make a new
-				# nested command node
-				#
-				if ($parent->{type} eq 'COMMAND') {
+            # inner command (such as {\command text text}). our regexp checks to see
+            # if this text chunk begins with \command, since that would be the case
+            # due to the previous parsing stages. if found, the parent node is
+            # promoted to a command.
+            #
+            if ($text =~ /^\s*\\(\w+)/ && defined $parent && defined $INNERCMDS{$1}) {
+                my $command = $1;
 
-					# make a new command node
-					my $newnode = Node->new(
-						{type => 'COMMAND',
-						 command => $command,
-						 start => $parent->{start},
-						 end => $parent->{end},
-						 position => 'inner',
-						 children => $parent->{children} });
+                # if the parent is already a command node, we have to make a new
+                # nested command node
+                #
+                if ($parent->{type} eq 'COMMAND') {
 
-					# point parent to it
-					$parent->{children} = Tree->new([$newnode]);
+                    # make a new command node
+                    my $newnode = Node->new(
+                        {type => 'COMMAND',
+                         command => $command,
+                         start => $parent->{start},
+                         end => $parent->{end},
+                         position => 'inner',
+                         children => $parent->{children} });
 
-					# start over at this level (get additional inner commands)
-					$parent = $newnode;
-					$i = -1;
-					
-					$parser->{USED_COMMANDS}->{$newnode->{command}} = 1;
-				} 
-				
-				# parent is a naked group, we can make it into a command node
-				#
-				elsif ($parent->{type} eq 'GROUP') {
-					$parent->{type} = 'COMMAND';
-					$parent->{command} = $command;
-					$parent->{position} = 'inner';
+                    # point parent to it
+                    $parent->{children} = Tree->new([$newnode]);
 
-					# start over at this level
-					$i = -1;
+                    # start over at this level (get additional inner commands)
+                    $parent = $newnode;
+                    $i = -1;
 
-					$parser->{USED_COMMANDS}->{$parent->{command}} = 1;
-				}
+                    $parser->{USED_COMMANDS}->{$newnode->{command}} = 1;
+                }
 
-				$node->{content} =~ s/^\s*\\(?:\w+)//o;
-			}
-			
-			# outer command (such as \command{parameters}). our regexp checks to
-			#	see if this text chunk ends in \command, since that would be the case
-			#	due to the previous parsing stages.
-			#
-			if ($text =~ /(?:^|[^\\])(\\\w+(\s*\[.*?\])?)\s*$/os && 
-					defined $tree->[$i+1] &&
-					$tree->[$i+1]->{type} eq 'GROUP') {
-					
-				my $tag = $1;
-				
-				#print "found text node [$text] with command tag [$tag]\n";
-				
-				# remove the text
-				$node->{content} =~ s/\\\w+\s*(?:\[.*?\])?\s*$//os;
+                # parent is a naked group, we can make it into a command node
+                #
+                elsif ($parent->{type} eq 'GROUP') {
+                    $parent->{type} = 'COMMAND';
+                    $parent->{command} = $command;
+                    $parent->{position} = 'inner';
 
-				# parse it for command and ops
-				$tag =~ /^\\(\w+)\s*(?:\[(.*?)\])?$/os;
+                    # start over at this level
+                    $i = -1;
 
-				my $command = $1;
-				my $opts = $2;
+                    $parser->{USED_COMMANDS}->{$parent->{command}} = 1;
+                }
 
-				# make the next node a command node with the above data
-				my $next = $tree->[$i+1];
+                $node->{content} =~ s/^\s*\\(?:\w+)//o;
+            }
 
-				$next->{type} = 'COMMAND';
-				$next->{command} = $command;
-				$next->{opts} = $opts;
-				$next->{position} = 'outer';
+            # outer command (such as \command{parameters}). our regexp checks to
+            # see if this text chunk ends in \command, since that would be the case
+            # due to the previous parsing stages.
+            #
+            if ($text =~ /(?:^|[^\\])(\\\w+(\s*\[.*?\])?)\s*$/os && 
+                    defined $tree->[$i+1] &&
+                    $tree->[$i+1]->{type} eq 'GROUP') {
 
-				$parser->{USED_COMMANDS}->{$next->{command}} = 1;
-			}
+                my $tag = $1;
 
-			# recognize braceless commands
-			#
-			if ($text =~ /(\\(\w+)[ \t]+(\S+))/gso || $text =~ /(\\(\w+)(\d+))/gso) {
-				my $all = $1;
-				my $command = $2;
-				my $param = $3;
-				
-				if (defined $BRACELESS{$command}) {
-				 # warn "found braceless command $command with param $param";
+                #print "found text node [$text] with command tag [$tag]\n";
 
-					# get location to split from node text
-					my $a = index $node->{content}, $all, 0;
-					my $b = $a + length($all) - 1;
+                # remove the text
+                $node->{content} =~ s/\\\w+\s*(?:\[.*?\])?\s*$//os;
 
-					# make all the new nodes
-					
-					# new left and right text nodes
-					my ($leftnode, $rightnode) = $node->split($a, $b);
-					
-					# param contents node
-					my $pstart = index $node->{content}, $param, $a;
-					my $newchild = Node->new(
-						{type => 'TEXT',
-						start => $node->{start} + $pstart,
-						end => $node->{start} + $pstart + length($param) - 1,
-						content => $param });
+                # parse it for command and ops
+                $tag =~ /^\\(\w+)\s*(?:\[(.*?)\])?$/os;
 
-					# new command node
-					my $commandnode = Node->new(
-						{type => 'COMMAND',
-						 braces => 0,
-						 command => $command,
-						 start => $node->{start} + $a,
-						 end => $node->{start} + $b,
-						 children => Tree->new([$newchild]) });
+                my $command = $1;
+                my $opts = $2;
 
-					$parser->{USED_COMMANDS}->{$commandnode->{command}} = 1;
+                # make the next node a command node with the above data
+                my $next = $tree->[$i+1];
 
-					# splice these all into the original array
-					splice @$tree, $i, 1, $leftnode, $commandnode, $rightnode;
-					
-					# make the rightnode the node we're currently analyzing
-					$node = $rightnode;
-					
-					# make sure outer loop will continue parsing *after* rightnode
-					$i += 2;
-				}
-			}
-		}
+                $next->{type} = 'COMMAND';
+                $next->{command} = $command;
+                $next->{opts} = $opts;
+                $next->{position} = 'outer';
 
-		# recur
-		if ($node->{type} eq 'GROUP' ||
-				$node->{type} eq 'COMMAND') {
-				
-			$parser->stage3($node->{children}, $node);
-		}
-	}
+                $parser->{USED_COMMANDS}->{$next->{command}} = 1;
+            }
+
+            # recognize braceless commands
+            #
+            if ($text =~ /(\\(\w+)[ \t]+(\S+))/gso || $text =~ /(\\(\w+)(\d+))/gso) {
+                my $all = $1;
+                my $command = $2;
+                my $param = $3;
+
+                if (defined $BRACELESS{$command}) {
+                 # warn "found braceless command $command with param $param";
+
+                    # get location to split from node text
+                    my $a = index $node->{content}, $all, 0;
+                    my $b = $a + length($all) - 1;
+
+                    # make all the new nodes
+
+                    # new left and right text nodes
+                    my ($leftnode, $rightnode) = $node->split($a, $b);
+
+                    # param contents node
+                    my $pstart = index $node->{content}, $param, $a;
+                    my $newchild = Node->new(
+                        {type => 'TEXT',
+                         start => $node->{start} + $pstart,
+                         end => $node->{start} + $pstart + length($param) - 1,
+                         content => $param });
+
+                    # new command node
+                    my $commandnode = Node->new(
+                        {type => 'COMMAND',
+                         braces => 0,
+                         command => $command,
+                         start => $node->{start} + $a,
+                         end => $node->{start} + $b,
+                         children => Tree->new([$newchild]) });
+
+                    $parser->{USED_COMMANDS}->{$commandnode->{command}} = 1;
+
+                    # splice these all into the original array  
+                    splice @$tree, $i, 1, $leftnode, $commandnode, $rightnode;
+
+                    # make the rightnode the node we're currently analyzing
+                    $node = $rightnode;
+
+                    # make sure outer loop will continue parsing *after* rightnode
+                    $i += 2;
+                }
+            }
+        }
+
+        # recur
+        if ($node->{type} eq 'GROUP' ||
+            $node->{type} eq 'COMMAND') {
+
+            $parser->stage3($node->{children}, $node);
+        }
+    }
 }
 
 # this stage finds \begin{x} \end{x} environments and shoves their contents 
@@ -500,275 +500,275 @@ sub Parser::stage3 {
 # and "class" is the "x" from above.
 #
 sub Parser::stage4 {
-	my $parser = shift;
-	my $tree = shift;
+    my $parser = shift;
+    my $tree = shift;
 
-	my $bcount = 0;	# \begin "stack count"
-	my $class = "";	# environment class
-	my $bidx = 0;		# \begin array index.
+    my $bcount = 0; # \begin "stack count"
+    my $class = ""; # environment class
+    my $bidx = 0;   # \begin array index.
 
-	for (my $i = 0; $i < @$tree; $i++) {
-		my $node = $tree->[$i];
+    for (my $i = 0; $i < @$tree; $i++) {
+        my $node = $tree->[$i];
 
-		# see if this is a "\begin" command node
-		if ($node->{type} eq 'COMMAND' && $node->{command} eq 'begin') {
+        # see if this is a "\begin" command node
+        if ($node->{type} eq 'COMMAND' && $node->{command} eq 'begin') {
 
-			#warn "parseStage4: found a begin COMMAND node, ".$node->{children}->[0]->{content}." @ $node->{start}";
-			
-			# start a new "stack"
-			if ($bcount == 0) {
-				$bidx = $i;
-				$bcount++; 
-				$class = $node->{children}->[0]->{content};
-				#warn "parseStage4: opening environment tag found, class = $class";
-			}
+            #warn "parseStage4: found a begin COMMAND node, ".$node->{children}->[0]->{content}." @ $node->{start}";
 
-			# add to the "stack"
-			elsif ($node->{children}->[0]->{content} eq $class) {
-				$bcount++;
-				#warn "parseStage4: incrementing tag count for $class";
-			}
-		}
+            # start a new "stack"
+            if ($bcount == 0) {
+                $bidx = $i;
+                $bcount++;
+                $class = $node->{children}->[0]->{content};
+                #warn "parseStage4: opening environment tag found, class = $class";
+            }
 
-		# handle "\end" command nodes
-		elsif ($node->{type} eq 'COMMAND' &&
-					 $node->{command} eq 'end' &&
-					 $node->{children}->[0]->{content} eq $class) {
+            # add to the "stack"
+            elsif ($node->{children}->[0]->{content} eq $class) {
+                $bcount++;
+                #warn "parseStage4: incrementing tag count for $class";
+            }
+        }
 
-			$bcount--;
-			#warn "parseStage4: decrementing tag count for $class";
+        # handle "\end" command nodes
+        elsif ($node->{type} eq 'COMMAND' &&
+               $node->{command} eq 'end' &&
+               $node->{children}->[0]->{content} eq $class) {
 
-			# we found our closing "\end" tag.	replace everything with the proper
-			# ENVIRONMENT tag and subtree.
-			#
-			if ($bcount == 0) {
+            $bcount--;
+            #warn "parseStage4: decrementing tag count for $class";
 
-				#warn "parseStage4: closing environment $class";
-				
-				# first we must take everything between the "\begin" and "\end" 
-				# nodes and put them in a new array, removing them from the old one
-				my @newarray = splice @$tree, $bidx+1, $i - ($bidx + 1);
+            # we found our closing "\end" tag. replace everything with the proper
+            # ENVIRONMENT tag and subtree.
+            #
+            if ($bcount == 0) {
 
-				# make the ENVIRONMENT node
-				my $start = $tree->[$bidx]->{end};
-				my $end = $node->{start};
-				my $envnode = Node->new(
-					{type => 'ENVIRONMENT',
-					 class => $class,
-					 start => $start,	# "inner" start and end
-					 end => $end,
-					 ostart => $start - length('begin') - length($class) - 2,
-					 oend => $end + length('end') + length($class) + 2,
-					 children => Tree->new([@newarray]) });
+                #warn "parseStage4: closing environment $class";
 
-				if (defined $MATHENVS{$envnode->{class}}) {
-					$envnode->{math} = 1;
-				}
+                # first we must take everything between the "\begin" and "\end" 
+                # nodes and put them in a new array, removing them from the old one
+                my @newarray = splice @$tree, $bidx+1, $i - ($bidx + 1);
 
-				# replace the \begin and \end COMMAND nodes with the single 
-				# environment node
-				splice @$tree, $bidx, 2, $envnode;
+                # make the ENVIRONMENT node
+                my $start = $tree->[$bidx]->{end};
+                my $end = $node->{start};
+                my $envnode = Node->new(
+                    {type => 'ENVIRONMENT',
+                     class => $class,
+                     start => $start, # "inner" start and end
+                     end => $end,
+                     ostart => $start - length('begin') - length($class) - 2,
+                     oend => $end + length('end') + length($class) + 2,
+                     children => Tree->new([@newarray]) });
 
-				$class = "";	# reset class.
+                if (defined $MATHENVS{$envnode->{class}}) {
+                    $envnode->{math} = 1;
+                }
 
-				# i is going to change by however many nodes we removed
-				$i -= scalar @newarray;
+                # replace the \begin and \end COMMAND nodes with the single 
+                # environment node
+                splice @$tree, $bidx, 2, $envnode;
 
-				# recur into the children
-				$parser->stage4($envnode->{children});	
-			}
-		}
+                $class = ""; # reset class.
 
-		# recur in general
-		elsif ($node->{children}) {
-			$parser->stage4($node->{children});
-		}
-	}
+                # i is going to change by however many nodes we removed
+                $i -= scalar @newarray;
 
-	# parse error if we're missing an "\end" tag.
-	if ($bcount > 0) {
-		if ($parser->{PARSE_ERRORS_FATAL} == 1) {
-			die "parse error: missing \\end{$class} for \\begin{$class} at position ".$tree->[$bidx]->{end}." !";
-		} elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
-			warn "parse error: missing \\end{$class} for \\begin{$class} at position ".$tree->[$bidx]->{end}." !";
-		}
-	}
+                # recur into the children
+                $parser->stage4($envnode->{children});	
+            }
+        }
+
+        # recur in general
+        elsif ($node->{children}) {
+            $parser->stage4($node->{children});
+        }
+    }
+
+    # parse error if we're missing an "\end" tag.
+    if ($bcount > 0) {
+        if ($parser->{PARSE_ERRORS_FATAL} == 1) {
+            die "parse error: missing \\end{$class} for \\begin{$class} at position ".$tree->[$bidx]->{end}." !";
+        } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
+            warn "parse error: missing \\end{$class} for \\begin{$class} at position ".$tree->[$bidx]->{end}." !";
+        }
+    }
 }
 
-# This is the "math" stage: here we grab simple-delimeter math modes from 
-#	the text they are embedded in, and turn those into new groupings, with the
-#	"math" flag set.
+# This is the "math" stage: here we grab simple-delimeter math modes from
+# the text they are embedded in, and turn those into new groupings, with the
+# "math" flag set.
 #
 # having this top level to go over all the bracket types prevents some pretty
 # bad combinatorial explosion
 #
 sub Parser::stage5 {
-	my $parser = shift;
-	
-	my $tree = shift;
-	my $caremath = shift || 0;
+    my $parser = shift;
 
-	my $brackets = $parser->{MATHBRACKETS};
+    my $tree = shift;
+    my $caremath = shift || 0;
 
-	# loop through all the different math mode bracket types
-	foreach my $left (sort {length($b) <=> length($a)} keys %$brackets) {
-		my $right = $brackets->{$left};
+    my $brackets = $parser->{MATHBRACKETS};
 
-		$parser->stage5_r($tree, $left, $right, $caremath);
-	}
+    # loop through all the different math mode bracket types
+    foreach my $left (sort {length($b) <=> length($a)} keys %$brackets) {
+        my $right = $brackets->{$left};
+
+        $parser->stage5_r($tree, $left, $right, $caremath);
+    }
 }
 
 # recursive meat of above
 #
 sub Parser::stage5_r {
-	my $parser = shift;
-	
-	my $tree = shift;
-	my $left = shift;
-	my $right = shift;
-	my $caremath = shift || 0; # do we care if we're already in math mode?
-														 # this matters for \( \), \[ \]
+    my $parser = shift;
 
-	my $leftpos = -1; # no text pos for found left brace yet.
-	my $leftidx = -1; # no array index for found left brace yet.
+    my $tree = shift;
+    my $left = shift;
+    my $right = shift;
+    my $caremath = shift || 0; # do we care if we're already in math mode?
+                               # this matters for \( \), \[ \]
 
-		# loop through the nodes
-		for (my $i = 0; $i < scalar @$tree; $i++) {
-			my $node = $tree->[$i];
-			my $pos = 0;			# position placeholder within the text block
-			my $spos = $node->{start};	# get text start position 
+    my $leftpos = -1; # no text pos for found left brace yet.
+    my $leftidx = -1; # no array index for found left brace yet.
 
-			if ($node->{type} eq 'TEXT' && 
-					(!$caremath || (!$node->{math} && $caremath))) {
-				 
-				# search for left brace if we haven't started a pair yet
-				if ($leftidx == -1) {
-					$leftpos = findsymbol($node->{content}, $left, $pos);
+        # loop through the nodes
+        for (my $i = 0; $i < scalar @$tree; $i++) {
+            my $node = $tree->[$i];
+            my $pos = 0; # position placeholder within the text block
+            my $spos = $node->{start}; # get text start position
 
-					if ($leftpos != -1) {
-						#print "found (left) $left in [$node->{content}]\n";
-						$leftidx = $i;
-						$pos = $leftpos + 1;	# next pos to search from
-					}
-				} 
+            if ($node->{type} eq 'TEXT' && 
+               (!$caremath || (!$node->{math} && $caremath))) {
 
-				# search for a right brace
-				if ($leftpos != -1) {
-					my $rightpos = findsymbol($node->{content}, $right, $pos);
+                # search for left brace if we haven't started a pair yet
+                if ($leftidx == -1) {
+                    $leftpos = findsymbol($node->{content}, $left, $pos);
 
-					# found
-					if ($rightpos != -1) {
+                    if ($leftpos != -1) {
+                        #print "found (left) $left in [$node->{content}]\n";
+                        $leftidx = $i;
+                        $pos = $leftpos + 1; # next pos to search from
+                    }
+                }
 
-						# we have to split the text node into 3 parts
-						if ($leftidx == $i) {
-							#print "splitwithin: found (right) $right in [$node->{content}]\n";
-							
-							my ($leftnode, $textnode3) = $node->split($rightpos, $rightpos + length($right) - 1);
-							my ($textnode1, $textnode2) = $leftnode->split($leftpos, $leftpos + length($left) - 1);
-							
-							my $startpos = $spos;	# get text start position 
+                # search for a right brace
+                if ($leftpos != -1) {
+                    my $rightpos = findsymbol($node->{content}, $right, $pos);
 
-							# make the math ENVIRONMENT node
-							my $mathnode = Node->new(
-								{type => 'ENVIRONMENT',
-								class => $left,	# use left delim as class
-								math => 1,
-								start => $startpos + $leftpos,
-								ostart => $startpos + $leftpos - length($left) + 1,
-								end => $startpos + $rightpos,
-								oend => $startpos + $rightpos + length($right) - 1,
-								children => Tree->new([$textnode2]) });
-															
-							splice @$tree, $i, 1, $textnode1, $mathnode, $textnode3;
+                    # found
+                    if ($rightpos != -1) {
 
-							$i++; # skip ahead two nodes, so we'll be parsing textnode3
-						}	
-						
-						# split across nodes
-						else {
-							
-							#print "splitacross: found (right) $right in [$node->{content}]\n";
+                        # we have to split the text node into 3 parts
+                        if ($leftidx == $i) {
+                            #print "splitwithin: found (right) $right in [$node->{content}]\n";
 
-							# create new set of 4 smaller text nodes from the original two
-							# that contain the left and right delimeters
-							#
-							my ($textnode1, $textnode2) = $tree->[$leftidx]->split($leftpos, $leftpos + length($left) - 1);
-							my ($textnode3, $textnode4) = $tree->[$i]->split($rightpos, $rightpos + length($right) - 1);
-							
-							# nodes to remove "from the middle" (between the left and right
-							#	text nodes which contain the delimeters)
-							#
-							my @remnodes = splice @$tree, $leftidx+1, $i - $leftidx - 1;
+                            my ($leftnode, $textnode3) = $node->split($rightpos, $rightpos + length($right) - 1);
+                            my ($textnode1, $textnode2) = $leftnode->split($leftpos, $leftpos + length($left) - 1);
 
-							# create a math node that contains the text after the left brace,
-							#	then all the nodes up until the next text node, then the text
-							#	before the right brace.	
-							#
-							my $mathnode = Node->new(
-								{type => 'ENVIRONMENT',
-								class => $left,
-								math => 1,
-								start => $textnode2->{start} - 1,
-								end => $textnode3->{end} + 1,
-								ostart => $textnode2->{start} - 1 - length($left) + 1,
-								oend => $textnode3->{end} + 1 + length($right) - 1,
-								children => Tree->new(
-																													[$textnode2, 
-									 @remnodes,
-									 $textnode3]) });
+                            my $startpos = $spos; # get text start position 
 
-							# replace (TEXT_A, ... , TEXT_B) with the mathnode created above
-							splice @$tree, $leftidx, 2, $textnode1, $mathnode, $textnode4;
+                            # make the math ENVIRONMENT node
+                            my $mathnode = Node->new(
+                                {type => 'ENVIRONMENT',
+                                class => $left,	# use left delim as class
+                                math => 1,
+                                start => $startpos + $leftpos,
+                                ostart => $startpos + $leftpos - length($left) + 1,
+                                end => $startpos + $rightpos,
+                                oend => $startpos + $rightpos + length($right) - 1,
+                                children => Tree->new([$textnode2]) });
 
-							# do all nodes again but the very leftmost
-							#
-							$i = $leftidx;
-						} 
+                            splice @$tree, $i, 1, $textnode1, $mathnode, $textnode3;
 
-						$leftpos = -1;	# reset left data
-						$leftidx = -1;
-					} # right brace
-				} # left brace 
-				else {
-					
-					my $rightpos = findsymbol($node->{content}, $right, $pos);
+                            $i++; # skip ahead two nodes, so we'll be parsing textnode3
+                        }
 
-					if ($rightpos != -1) {
-						my $startpos = $node->{start};	# get text start position 
-						if ($parser->{PARSE_ERRORS_FATAL} == 1) {
-							die "parse error: unmatched '$right' at ".($startpos+$rightpos).".";
-						} elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
-							warn "parse error: unmatched '$right' at ".($startpos+$rightpos).".";
-						}
-					}
-				}
-			} # if TEXT
+                        # split across nodes
+                        else {
 
-			# recur, but not into verbatim environments!
-			#
-			elsif ($node->{children} && 
-						 !(
-							 ($node->{type} eq 'COMMAND' && $node->{command} =~ /^verb/) ||
-							 ($node->{type} eq 'ENVIRONMENT' && $node->{class} =~ /^verbatim/))) {
+                            #print "splitacross: found (right) $right in [$node->{content}]\n";
 
-				#print "Recurring into $node->{type} node ";
-				#print "$node->{command}" if ($node->{type} eq 'COMMAND');
-				#print "$node->{class}" if ($node->{type} eq 'ENVIRONMENT');
-				#print "\n";
+                            # create new set of 4 smaller text nodes from the original two
+                            # that contain the left and right delimeters
+                            #
+                            my ($textnode1, $textnode2) = $tree->[$leftidx]->split($leftpos, $leftpos + length($left) - 1);
+                            my ($textnode3, $textnode4) = $tree->[$i]->split($rightpos, $rightpos + length($right) - 1);
 
-				$parser->stage5_r($node->{children}, $left, $right, $caremath);
-			}
-			
-		} # loop over text blocks
-		
-		if ($leftpos != -1) {
-			my $startpos = $tree->[$leftidx]->{start};	# get text start position 
-			if ($parser->{PARSE_ERRORS_FATAL} == 1) {
-				die "parse error: unmatched '$left' at ".($startpos+$leftpos).".";
-			} elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
-				warn "parse error: unmatched '$left' at ".($startpos+$leftpos).".";
-			}
-		}
+                            # nodes to remove "from the middle" (between the left and right
+                            # text nodes which contain the delimeters)
+                            #
+                            my @remnodes = splice @$tree, $leftidx+1, $i - $leftidx - 1;
+
+                            # create a math node that contains the text after the left brace,
+                            # then all the nodes up until the next text node, then the text
+                            # before the right brace.
+                            #
+                            my $mathnode = Node->new(
+                                {type => 'ENVIRONMENT',
+                                class => $left,
+                                math => 1,
+                                start => $textnode2->{start} - 1,
+                                end => $textnode3->{end} + 1,
+                                ostart => $textnode2->{start} - 1 - length($left) + 1,
+                                oend => $textnode3->{end} + 1 + length($right) - 1,
+                                children => Tree->new(
+                                [$textnode2,
+                                 @remnodes,
+                                 $textnode3]) });
+
+                            # replace (TEXT_A, ... , TEXT_B) with the mathnode created above
+                            splice @$tree, $leftidx, 2, $textnode1, $mathnode, $textnode4;
+
+                            # do all nodes again but the very leftmost
+                            #
+                            $i = $leftidx;
+                        }
+
+                        $leftpos = -1; # reset left data    
+                        $leftidx = -1;
+                    } # right brace
+                } # left brace 
+                else {
+
+                    my $rightpos = findsymbol($node->{content}, $right, $pos);
+
+                    if ($rightpos != -1) {
+                        my $startpos = $node->{start}; # get text start position 
+                        if ($parser->{PARSE_ERRORS_FATAL} == 1) {
+                            die "parse error: unmatched '$right' at ".($startpos+$rightpos).".";
+                        } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
+                            warn "parse error: unmatched '$right' at ".($startpos+$rightpos).".";
+                        }
+                    }
+                }
+            } # if TEXT
+
+            # recur, but not into verbatim environments!
+            #
+            elsif ($node->{children} && 
+                         !(
+                             ($node->{type} eq 'COMMAND' && $node->{command} =~ /^verb/) ||
+                             ($node->{type} eq 'ENVIRONMENT' && $node->{class} =~ /^verbatim/))) {
+
+                #print "Recurring into $node->{type} node ";
+                #print "$node->{command}" if ($node->{type} eq 'COMMAND');
+                #print "$node->{class}" if ($node->{type} eq 'ENVIRONMENT');
+                #print "\n";
+
+                $parser->stage5_r($node->{children}, $left, $right, $caremath);
+            }
+
+        } # loop over text blocks
+
+        if ($leftpos != -1) {
+            my $startpos = $tree->[$leftidx]->{start};	# get text start position 
+            if ($parser->{PARSE_ERRORS_FATAL} == 1) {
+                die "parse error: unmatched '$left' at ".($startpos+$leftpos).".";
+            } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
+                warn "parse error: unmatched '$left' at ".($startpos+$leftpos).".";
+            }
+        }
 }
 
 # This stage propegates the math mode flag and plaintext flags downward.
@@ -778,237 +778,237 @@ sub Parser::stage5_r {
 # and also plantext = 0.
 #
 sub Parser::propegateModes {
-	my $parser = shift;
+    my $parser = shift;
 
-	my $tree = shift;
-	my $math = shift;				# most likely want to call this with 0
-	my $plaintext = shift;	 # ditto this-- default to nothing visible.
+    my $tree = shift;
+    my $math = shift;       # most likely want to call this with 0
+    my $plaintext = shift;  # ditto this-- default to nothing visible.
 
-	foreach my $node (@$tree) {
+    foreach my $node (@$tree) {
 
-		# handle text nodes on this level. set flags.
-		#
-		if ($node->{type} eq 'TEXT') {
-			$node->{math} = $math;
-			$node->{plaintext} = $plaintext;
-		}
+        # handle text nodes on this level. set flags.
+        #
+        if ($node->{type} eq 'TEXT') {
+            $node->{math} = $math;
+            $node->{plaintext} = $plaintext;
+        }
 
-		# propegate flags downward, possibly modified
-		#
-		elsif (defined $node->{children}) {
-		
-			my $mathflag = $math;	 # math propegates down by default
-			my $plaintextflag = 0;	# plaintext flag does NOT propegate by default
+        # propegate flags downward, possibly modified
+        #
+        elsif (defined $node->{children}) {
 
-			# handle math or plain text forcing envs
-			#
-			if ($node->{type} eq 'ENVIRONMENT' || $node->{type} eq 'COMMAND') {
-				if (defined $MATHENVS{$node->{class}} || 
-						defined $MATHENVS{"$node->{class}*"}) {
-						
-					$mathflag = 1;
-					$plaintextflag = 0;
-				}
-				elsif (($node->{type} eq 'COMMAND' && 
-								(defined $TEXTENVS{$node->{command}} ||
-							 	 defined $TEXTENVS{"$node->{command}*"})) ||
-							 ($node->{type} eq 'ENVIRONMENT' && 
-								(defined $TEXTENVS{$node->{class}} ||
-								 defined $TEXTENVS{"$node->{command}*"}))
-							) {
-							
-					$mathflag = 0;
-					$plaintextflag = 1;
-				}
-			}
-		
-			# groupings change nothing
-			#
-			elsif ($node->{type} eq 'GROUP') {
-				$mathflag = $math;
-				$plaintextflag = $plaintext;
-			}
+            my $mathflag = $math;    # math propegates down by default
+            my $plaintextflag = 0;   # plaintext flag does NOT propegate by default
 
-			# recur 
-			$parser->propegateModes($node->{children}, $mathflag, $plaintextflag);	
-		}
-	}
+            # handle math or plain text forcing envs
+            #
+            if ($node->{type} eq 'ENVIRONMENT' || $node->{type} eq 'COMMAND') {
+                if (defined $MATHENVS{$node->{class}} || 
+                    defined $MATHENVS{"$node->{class}*"}) {
+
+                    $mathflag = 1;
+                    $plaintextflag = 0;
+                }
+                elsif (($node->{type} eq 'COMMAND' && 
+                                (defined $TEXTENVS{$node->{command}} ||
+                                 defined $TEXTENVS{"$node->{command}*"})) ||
+                             ($node->{type} eq 'ENVIRONMENT' && 
+                                (defined $TEXTENVS{$node->{class}} ||
+                                 defined $TEXTENVS{"$node->{command}*"}))
+                            ) {
+
+                    $mathflag = 0;
+                    $plaintextflag = 1;
+                }
+            }
+
+            # groupings change nothing
+            #
+            elsif ($node->{type} eq 'GROUP') {
+                $mathflag = $math;
+                $plaintextflag = $plaintext;
+            }
+
+            # recur
+            $parser->propegateModes($node->{children}, $mathflag, $plaintextflag);
+        }
+    }
 }
 
 # apply a mapping to text nodes in a tree
 #
 # for newcommands and defs: mapping is a hash:
 #
-#	{name, nparams, template, type}
+# {name, nparams, template, type}
 #
 # name is a string
 # nparams is an integer
 # template is a tree fragement containing text nodes with #x flags, where
-#	parameters will be replaced.
+# parameters will be replaced.
 # type is "command"
 #
 # for newenvironments:
 #
-#	{name, nparams, btemplate, etemplate, type}
+# {name, nparams, btemplate, etemplate, type}
 #
 # same as above, except type is "environment" and there are two templates,
-#	btemplate and etemplate.
+# btemplate and etemplate.
 #
 sub Parser::applyMapping {
-	my $parser = shift;
-	
-	my $tree = shift;
-	my $mapping = shift;
-	my $i = shift || 0;								 # index to start with, in tree.
+    my $parser = shift;
 
-	my $applications = 0;	 # keep track of # of applications
-	
-	for (; $i < @$tree; $i++) {
-		
-		my $node = $tree->[$i];
+    my $tree = shift;
+    my $mapping = shift;
+    my $i = shift || 0;  # index to start with, in tree.
 
-		# begin environment nodes
-		#
-		if ($node->{type} eq 'COMMAND' &&
-				$node->{command} eq 'begin' &&
-				$node->{children}->[0]->{content} eq $mapping->{name}) {
-				
-			# grab the nparams next group nodes as parameters
-			#
-			my @params = ();
- 
-			my $remain = $mapping->{nparams};
-			my $j = 1;
-			while ($remain > 0 && ($i + $j) < scalar @$tree) {
- 
-				my $node = $tree->[$i + $j];
-				
-				# grab group node
-				if ($node->{type} eq 'GROUP') {
-					push @params, $node->{children};
-					$remain--;
-				}
+    my $applications = 0; # keep track of # of applications
 
-				$j++;
-			}
+    for (; $i < @$tree; $i++) {
 
-			# if we didn't get enough group nodes, bomb out
-			next if $remain;
+        my $node = $tree->[$i];
 
-			# otherwise make new subtree
-			my $applied = applyParamsToTemplate($mapping->{btemplate}, @params);
+        # begin environment nodes
+        #
+        if ($node->{type} eq 'COMMAND' &&
+                $node->{command} eq 'begin' &&
+                $node->{children}->[0]->{content} eq $mapping->{name}) {
 
-			# splice in the result
-			splice @$tree, $i, $j, @$applied;
-			
-			# skip past all the new stuff
-			$i += scalar @$applied - 1;
-		}
-		
-		# end environment nodes
-		#
-		elsif ($node->{type} eq 'COMMAND' &&
-					 $node->{command} eq 'end' &&
-					 $node->{children}->[0]->{content} eq $mapping->{name}) {
+            # grab the nparams next group nodes as parameters
+            #
+            my @params = ();
 
-			# make new subtree (no params)
-			my $applied = $mapping->{etemplate}->copy();
+            my $remain = $mapping->{nparams};
+            my $j = 1;
+            while ($remain > 0 && ($i + $j) < scalar @$tree) {
 
-			# splice in the result
-			splice @$tree, $i, 1, @$applied;
-			
-			# skip past all the new stuff
-			$i += scalar @$applied - 1;
+                my $node = $tree->[$i + $j];
 
-			$applications++;	 # only count end environment nodes
-		}
+                # grab group node
+                if ($node->{type} eq 'GROUP') {
+                    push @params, $node->{children};
+                    $remain--;
+                }
 
-		# newcommand nodes
-		#
-		elsif ($node->{type} eq 'COMMAND' &&
-				$node->{command} eq $mapping->{name} &&
-				$mapping->{nparams}) {
+                $j++;
+            }
 
-			my @params = ();
-			
-			# children of COMMAND node will be first parameter
-			push @params, $node->{children};
+            # if we didn't get enough group nodes, bomb out
+            next if $remain;
 
-			# find next nparams GROUP nodes and push their children onto @params
-			my $remain = $mapping->{nparams} - 1;
-			my $j = 1;
-			while ($remain > 0 && ($i + $j) < scalar @$tree) {
- 
-				my $node = $tree->[$i + $j];
-				
-				# grab group node
-				if ($node->{type} eq 'GROUP') {
-					push @params, $node->{children};
-					$remain--;
-				}
+            # otherwise make new subtree
+            my $applied = applyParamsToTemplate($mapping->{btemplate}, @params);
 
-				$j++;
-			}
+            # splice in the result
+            splice @$tree, $i, $j, @$applied;
 
-			# if we didn't get enough group nodes, bomb out
-			next if ($remain > 0);
-			
-			# apply the params to the template
-			my $applied = applyParamsToTemplate($mapping->{template}, @params);
+            # skip past all the new stuff
+            $i += scalar @$applied - 1;
+        }
 
-			# splice in the result
-			splice @$tree, $i, $j, @$applied;
-			
-			# skip past all the new stuff
-			$i += scalar @$applied - 1;
+        # end environment nodes
+        #
+        elsif ($node->{type} eq 'COMMAND' &&
+                     $node->{command} eq 'end' &&
+                     $node->{children}->[0]->{content} eq $mapping->{name}) {
 
-			$applications++;
-		}
+            # make new subtree (no params)
+            my $applied = $mapping->{etemplate}->copy();
 
-		# find 0-param mappings
-		elsif ($node->{type} eq 'TEXT' && !$mapping->{nparams}) {
-				
-			 my $text = $node->{content};
-			 my $command = $mapping->{name};
+            # splice in the result
+            splice @$tree, $i, 1, @$applied;
 
-			 # find occurrences of the mapping command
-			 #
-			 my $wordend = ($command =~ /\w$/ ? 1 : 0); 
-			 while (($wordend && $text =~ /\\\Q$command\E(\W|$)/g) ||
-							(!$wordend && $text =~ /\\\Q$command\E/g)) {
-				 
-				 #warn "found occurrence of mapping $command";
+            # skip past all the new stuff
+            $i += scalar @$applied - 1;
 
-				 my $idx = index $node->{content}, '\\' . $command, 0;
+            $applications++; # only count end environment nodes
+        }
 
-				 # split the text node at that command
-				 my ($leftnode, $rightnode) = splitTextNode($node, $idx, $idx + length($command));
+        # newcommand nodes
+        #
+        elsif ($node->{type} eq 'COMMAND' &&
+                $node->{command} eq $mapping->{name} &&
+                $mapping->{nparams}) {
 
-				 # copy the mapping template
-				 my $applied = $mapping->{template}->copy();
+            my @params = ();
 
-				 # splice the new nodes in
-				 splice @$tree, $i, 1, $leftnode, @$applied, $rightnode;
+            # children of COMMAND node will be first parameter
+            push @params, $node->{children};
 
-				 # adjust i so we end up on rightnode when we're done
-				 $i += scalar @$applied + 1;
+            # find next nparams GROUP nodes and push their children onto @params
+            my $remain = $mapping->{nparams} - 1;
+            my $j = 1;
+            while ($remain > 0 && ($i + $j) < scalar @$tree) {
 
-				 # get the next node
-				 $node = $tree->[$i];
+                my $node = $tree->[$i + $j];
 
-				 # count application
-				 $applications++;
-			 }
-		}
+                # grab group node
+                if ($node->{type} eq 'GROUP') {
+                    push @params, $node->{children};
+                    $remain--;
+                }
 
-		# recur
-		elsif ($node->{children}) {
+                $j++;
+            }
 
-			$applications += $parser->applyMapping($node->{children}, $mapping);
-		}
-	}
+            # if we didn't get enough group nodes, bomb out
+            next if ($remain > 0);
 
-	return $applications;
+            # apply the params to the template
+            my $applied = applyParamsToTemplate($mapping->{template}, @params);
+
+            # splice in the result
+            splice @$tree, $i, $j, @$applied;
+
+            # skip past all the new stuff
+            $i += scalar @$applied - 1;
+
+            $applications++;
+        }
+
+        # find 0-param mappings
+        elsif ($node->{type} eq 'TEXT' && !$mapping->{nparams}) {
+
+             my $text = $node->{content};
+             my $command = $mapping->{name};
+
+             # find occurrences of the mapping command
+             #
+             my $wordend = ($command =~ /\w$/ ? 1 : 0); 
+             while (($wordend && $text =~ /\\\Q$command\E(\W|$)/g) ||
+                            (!$wordend && $text =~ /\\\Q$command\E/g)) {
+
+                 #warn "found occurrence of mapping $command";
+
+                 my $idx = index $node->{content}, '\\' . $command, 0;
+
+                 # split the text node at that command
+                 my ($leftnode, $rightnode) = splitTextNode($node, $idx, $idx + length($command));
+
+                 # copy the mapping template
+                 my $applied = $mapping->{template}->copy();
+
+                 # splice the new nodes in
+                 splice @$tree, $i, 1, $leftnode, @$applied, $rightnode;
+
+                 # adjust i so we end up on rightnode when we're done
+                 $i += scalar @$applied + 1;
+
+                 # get the next node
+                 $node = $tree->[$i];
+
+                 # count application
+                 $applications++;
+             }
+        }
+
+        # recur
+        elsif ($node->{children}) {
+
+            $applications += $parser->applyMapping($node->{children}, $mapping);
+        }
+    }
+
+    return $applications;
 }
 
 # find and apply all mappings in the tree, progressively and recursively.
@@ -1016,118 +1016,118 @@ sub Parser::applyMapping {
 # itself in the level array.
 #
 sub Parser::applyMappings {
-	my $parser = shift;
+    my $parser = shift;
 
-	my $tree = shift;
+    my $tree = shift;
 
-	for (my $i = 0; $i < @$tree ; $i++) {
+    for (my $i = 0; $i < @$tree ; $i++) {
 
-		my $prev = $tree->[$i-1];
-		my $node = $tree->[$i];
+        my $prev = $tree->[$i-1];
+        my $node = $tree->[$i];
 
-		# find newcommands
-		if ($node->{type} eq 'COMMAND' &&
-				$node->{command} =~ /^(re)?newcommand$/) {
+        # find newcommands
+        if ($node->{type} eq 'COMMAND' &&
+                $node->{command} =~ /^(re)?newcommand$/) {
 
-			my $mapping = makeMapping($tree, $i); 
-			next if (!$mapping->{name});	 # skip fragged commands
+            my $mapping = makeMapping($tree, $i); 
+            next if (!$mapping->{name}); # skip fragged commands
 
-			if ($parser->{USED_COMMANDS}->{$mapping->{name}}) {
-				#print "applying (nc) mapping $mapping->{name}\n";
-			} else {
-				#print "NOT applying (nc) mapping $mapping->{name}\n";
-				next;
-			}
-	
-			# add to mappings list
-			#
-			$parser->{MAPPEDCMDS}->{"\\$mapping->{name}"} = 1;
-			
-			#print "found a mapping with name $mapping->{name}, $mapping->{nparams} params\n";
+            if ($parser->{USED_COMMANDS}->{$mapping->{name}}) {
+                #print "applying (nc) mapping $mapping->{name}\n";
+            } else {
+                #print "NOT applying (nc) mapping $mapping->{name}\n";
+                next;
+            }
 
-			# remove the mapping declaration
-			#
-			splice @$tree, $i, $mapping->{skip} + 1;
-			
-			# apply the mapping
-			my $count = $parser->applyMapping($tree, $mapping, $i);
+            # add to mappings list
+            #
+            $parser->{MAPPEDCMDS}->{"\\$mapping->{name}"} = 1;
 
-			#if ($count > 0) {
-			#	 print "printing altered subtree\n";
-			#		$tree->print();
-			#}
+            #print "found a mapping with name $mapping->{name}, $mapping->{nparams} params\n";
 
-			$i--;	# since we removed the cmd node, check this index again
-		} 
-		
-		# handle "\newenvironment" mappings
-		elsif ($node->{type} eq 'COMMAND' &&
-				 $node->{command} =~ /^(re)?newenvironment$/) {
+            # remove the mapping declaration
+            #
+            splice @$tree, $i, $mapping->{skip} + 1;
 
-			# make a mapping hash
-			#
-			my $mapping = makeEnvMapping($tree, $i);
-			next if (!$mapping->{name});		 # skip fragged commands.
+            # apply the mapping
+            my $count = $parser->applyMapping($tree, $mapping, $i);
 
-			#print "applying (ne) mapping $mapping->{name}\n";
-			
-			# remove the mapping declaration
-			#
-			splice @$tree, $i, $mapping->{skip} + 1;
+            #if ($count > 0) {
+            #   print "printing altered subtree\n";
+            #   $tree->print();
+            #}
 
-			# apply the mapping
-			#
-			my $count = $parser->applyMapping($tree, $mapping, $i);
-		}
+            $i--; # since we removed the cmd node, check this index again
+        }
 
-		# handle "\def" stype commands.
-		elsif ($node->{type} eq 'COMMAND' &&
-				 defined $prev &&
-				 $prev->{type} eq 'TEXT' &&
-				 $prev->{content} =~ /\\def\s*$/o) {
+        # handle "\newenvironment" mappings
+        elsif ($node->{type} eq 'COMMAND' &&
+                 $node->{command} =~ /^(re)?newenvironment$/) {
 
-			 #print "found def style mapping $node->{command}\n";
+            # make a mapping hash
+            #
+            my $mapping = makeEnvMapping($tree, $i);
+            next if (!$mapping->{name}); # skip fragged commands.
 
-			 # remove the \def
-			 $prev->{content} =~ s/\\def\s*$//o;
-			 
-			 # make the mapping
-			 my $mapping = {name => $node->{command},
-				nparams => 0,
-				template => copyTree($node->{children}),
-				type => 'command'};
+            #print "applying (ne) mapping $mapping->{name}\n";
 
-			 next if (!$mapping->{name});	 # skip fragged commands
+            # remove the mapping declaration
+            #
+            splice @$tree, $i, $mapping->{skip} + 1;
 
-			 if ($parser->{USED_COMMANDS}->{$mapping->{name}}) {
-				 #print "applying (def) mapping $mapping->{name}\n";
-			 } else {
-				 #print "NOT applying (def) mapping $mapping->{name}\n";
-				 next;	 
-			 }
-			
-			 # add to mappings list
-			 #
-			 $parser->{MAPPEDCMDS}->{"\\$mapping->{name}"} = 1;
+            # apply the mapping
+            #
+            my $count = $parser->applyMapping($tree, $mapping, $i);
+        }
 
-			 #print "template is \n";
-			 #$mapping->{template}->print();
+        # handle "\def" stype commands.
+        elsif ($node->{type} eq 'COMMAND' &&
+                 defined $prev &&
+                 $prev->{type} eq 'TEXT' &&
+                 $prev->{content} =~ /\\def\s*$/o) {
 
-			 # remove the command node
-			 splice @$tree, $i, 1;
+             #print "found def style mapping $node->{command}\n";
 
-			 # apply the mapping
-			 my $count = $parser->applyMapping($tree, $mapping, $i);
+             # remove the \def
+             $prev->{content} =~ s/\\def\s*$//o;
 
-			 $i--;	# check this index again
-		}
+             # make the mapping
+             my $mapping = {name => $node->{command},
+                nparams => 0,
+                template => copyTree($node->{children}),
+                type => 'command'};
 
-		# recur
-		elsif ($node->{children}) {
-			
-			$parser->applyMappings($node->{children});
-		} 
-	}
+             next if (!$mapping->{name}); # skip fragged commands
+
+             if ($parser->{USED_COMMANDS}->{$mapping->{name}}) {
+                 #print "applying (def) mapping $mapping->{name}\n";
+             } else {
+                 #print "NOT applying (def) mapping $mapping->{name}\n";
+                 next;
+             }
+
+             # add to mappings list
+             #
+             $parser->{MAPPEDCMDS}->{"\\$mapping->{name}"} = 1;
+
+             #print "template is \n";
+             #$mapping->{template}->print();
+
+             # remove the command node
+             splice @$tree, $i, 1;
+
+             # apply the mapping
+             my $count = $parser->applyMapping($tree, $mapping, $i);
+
+             $i--; # check this index again
+        }
+
+        # recur
+        elsif ($node->{children}) {
+
+            $parser->applyMappings($node->{children});
+        }
+    }
 }
 
 # read files from \input commands and place into the tree, parsed
@@ -1135,107 +1135,107 @@ sub Parser::applyMappings {
 # also include bibliographies
 #
 sub Parser::addInputs {
-	my $parser = shift;
-	
-	my $tree = shift;
-	
-	for (my $i = 0; $i < @$tree; $i++) {
+    my $parser = shift;
 
-		my $node = $tree->[$i];
+    my $tree = shift;
 
-		if ($node->{type} eq 'COMMAND' &&
-			$node->{command} eq 'input') {
+    for (my $i = 0; $i < @$tree; $i++) {
 
-			my $file = $node->{children}->[0]->{content};
-			next if ($file =~ /pstex/);	# ignore pstex images
-		
-			#print "reading input file $file\n";
+        my $node = $tree->[$i];
 
-			# read in contents of file
-			my $contents = readFile($file);
-			if ($contents eq '' && not $file =~ /\.tex$/) {
-				$file = "$file.tex";
-				$contents = readFile($file); 
-			}
+        if ($node->{type} eq 'COMMAND' &&
+            $node->{command} eq 'input') {
 
-			# dump Psfig/TeX files, they aren't useful to us and have
-			# nonconforming syntax. Use declaration line as our heuristic.
-			#
-			if ($contents =~ /^\%\s*Psfig\/TeX\s*$/m) {
-				$contents = '';
-				warn "ignoring Psfig input '$file'";
-			}
- 
-			# actually do the parse of the sub-content
-			#
-			if ($contents) {
-				# parse into a tree
-				my ($subtree,) = basicparse($contents, $parser->{PARSE_ERRORS_FATAL});
+            my $file = $node->{children}->[0]->{content};
+            next if ($file =~ /pstex/);	# ignore pstex images
 
-				# replace \input command node with subtree
-				splice @$tree, $i, 1, @$subtree;
+            #print "reading input file $file\n";
 
-				# step back
-				$i--;
-			}
-		}
-		elsif ($node->{type} eq 'COMMAND' &&
-					 $node->{command} eq 'bibliography') {
+            # read in contents of file
+            my $contents = readFile($file);
+            if ($contents eq '' && not $file =~ /\.tex$/) {
+                $file = "$file.tex";
+                $contents = readFile($file); 
+            }
 
-			 # try to find a .bbl file
-			 #
-			 my @FILES = <*>;
-			 foreach my $file (@FILES) {
-				 if ($file =~ /\.bbl$/) {
+            # dump Psfig/TeX files, they aren't useful to us and have
+            # nonconforming syntax. Use declaration line as our heuristic.
+            #
+            if ($contents =~ /^\%\s*Psfig\/TeX\s*$/m) {
+                $contents = '';
+                warn "ignoring Psfig input '$file'";
+            }
 
-					 my $contents = readFile($file);
-					 
-					 if ($contents) {
-						 
-						 my ($subtree,) = basicparse($contents, $parser->{PARSE_ERRORS_FATAL});
-						 splice @$tree, $i, 1, @$subtree;
-						 $i--;	
-					 }
-				 }
-			 }
-		}
+            # actually do the parse of the sub-content
+            #
+            if ($contents) {
+                # parse into a tree
+                my ($subtree,) = basicparse($contents, $parser->{PARSE_ERRORS_FATAL});
 
-		# recur
-		if ($node->{children}) {
-			$parser->addInputs($node->{children});
-		}
-	}
+                # replace \input command node with subtree
+                splice @$tree, $i, 1, @$subtree;
+
+                # step back
+                $i--;
+            }
+        }
+        elsif ($node->{type} eq 'COMMAND' &&
+             $node->{command} eq 'bibliography') {
+
+             # try to find a .bbl file
+             #
+             my @FILES = <*>;
+             foreach my $file (@FILES) {
+                 if ($file =~ /\.bbl$/) {
+
+                     my $contents = readFile($file);
+
+                     if ($contents) {
+
+                         my ($subtree,) = basicparse($contents, $parser->{PARSE_ERRORS_FATAL});
+                         splice @$tree, $i, 1, @$subtree;
+                         $i--;
+                     }
+                 }
+             }
+        }
+
+        # recur
+        if ($node->{children}) {
+            $parser->addInputs($node->{children});
+        }
+    }
 }
 
 # do pre-mapping parsing
 #
 sub Parser::parseA {
-	my $parser = shift;
-	my $text = shift;
+    my $parser = shift;
+    my $text = shift;
 
-	my $tree = $parser->stage1($text);
-	my $bracehash = $parser->stage2($tree);
+    my $tree = $parser->stage1($text);
+    my $bracehash = $parser->stage2($tree);
 
-	$parser->stage3($tree);
+    $parser->stage3($tree);
 
-	$parser->addInputs($tree) if $parser->{readinputs};
-	
-	return ($tree, $bracehash);
+    $parser->addInputs($tree) if $parser->{readinputs};
+
+    return ($tree, $bracehash);
 }
 
 # do post-mapping parsing (make environments)
 #
 sub Parser::parseB {
-	my $parser = shift;
-	my $tree = shift;
+    my $parser = shift;
+    my $tree = shift;
 
-	$parser->stage4($tree);
-	
-	#print "done with parseStage4\n";
-	
-	$parser->stage5($tree, 0);
+    $parser->stage4($tree);
 
-	#print "done with parseStage5\n";
+    #print "done with parseStage4\n";
+
+    $parser->stage5($tree, 0);
+
+    #print "done with parseStage5\n";
 }
 
 ###############################################################################
@@ -1247,129 +1247,134 @@ sub Parser::parseB {
 # find next unescaped char in some text
 #
 sub uindex {
-	my $text = shift;
-	my $char = shift;
-	my $pos = shift;
+    my $text = shift;
+    my $char = shift;
+    my $pos = shift;
 
-	my $realbrace = 0;
-	my $idx = -1;
+    my $realbrace = 0;
+    my $idx = -1;
 
-	# get next opening brace
-	do {
-		$realbrace = 1;
-		$idx = index $text, $char, $pos; 
-		
-		if ($idx != -1) {
-			$pos = $idx + 1;
-			my $prevchar = substr $text, $idx - 1, 1;
-			if ($prevchar eq '\\') {
-				$realbrace = 0;
-				$idx = -1;
-			}
-		}
-	} while (!$realbrace);
- 
-	return $idx;
+    # get next opening brace
+    do {
+        $realbrace = 1;
+        $idx = index $text, $char, $pos; 
+
+        if ($idx != -1) {
+            $pos = $idx + 1;
+            my $prevchar = substr $text, $idx - 1, 1;
+            if ($prevchar eq '\\') {
+                $realbrace = 0;
+                $idx = -1;
+            }
+        }
+    } while (!$realbrace);
+
+    return $idx;
 }
 
 # support function: find the next occurrence of some symbol which is 
-# not escaped. 
+# not escaped.
 #
 sub findsymbol {
-	my $text = shift;
-	my $symbol = shift;
-	my $pos = shift;
+    my $text = shift;
+    my $symbol = shift;
+    my $pos = shift;
 
-	my $realhit = 0; 
-	my $index = -1;
+    my $realhit = 0; 
+    my $index = -1;
 
-	# get next occurrence of the symbol
-	do {
-		$realhit = 1;
-		$index = index $text, $symbol, $pos; 
-		
-		if ($index != -1) {
-			$pos = $index + 1;
-			
-			# make sure this occurrence isn't escaped. this is imperfect.
-			#
-			my $prevchar = ($index - 1 >= 0) ? 
-											(substr $text, $index - 1, 1) : '';
-			my $pprevchar = ($index - 2 >= 0) ?
-											 (substr $text, $index - 2, 1) : '';
-			if ($prevchar eq '\\' && $pprevchar ne '\\') {	
-				$realhit = 0;
-				$index = -1;
-			}
-		}
-	} while (!$realhit);
+    # get next occurrence of the symbol
+    do {
+        $realhit = 1;
+        $index = index $text, $symbol, $pos; 
 
-	return $index;
+        if ($index != -1) {
+            $pos = $index + 1;
+
+            # make sure this occurrence isn't escaped. this is imperfect.
+            #
+            my $prevchar = ($index - 1 >= 0) ? 
+                                             (substr $text, $index - 1, 1) : '';
+            my $pprevchar = ($index - 2 >= 0) ?
+                                             (substr $text, $index - 2, 1) : '';
+            if ($prevchar eq '\\' && $pprevchar ne '\\') {
+                $realhit = 0;
+                $index = -1;
+            }
+        }
+    } while (!$realhit);
+
+    return $index;
 }
 
 # support function: find the earliest next brace in some (flat) text
 #
 sub findbrace {
-	my $text = shift;
-	my $pos = shift;
+    my $text = shift;
+    my $pos = shift;
 
-	my $realbrace = 0;
-	my $index_o = -1;
-	my $index_c = -1;
+    my $realbrace = 0;
+    my $index_o = -1;
+    my $index_c = -1;
 
-	my $pos_o = $pos;
-	my $pos_c = $pos;
+    my $pos_o = $pos;
+    my $pos_c = $pos;
 
-	# get next opening brace
-	do {
-		$realbrace = 1;
-		$index_o = index $text, '{', $pos_o; 
-		
-		if ($index_o != -1) {
-			$pos_o = $index_o + 1;
-			
-			# make sure this brace isn't escaped. this is imperfect.
-			#
-			my $prevchar = ($index_o - 1 >= 0) ? 
-				(substr $text, $index_o - 1, 1) : '';
-			my $pprevchar = ($index_o - 2 >= 0) ?
-				(substr $text, $index_o - 2, 1) : '';
-				
-			if ($prevchar eq '\\' && $pprevchar ne '\\') {	
-				$realbrace = 0;
-				$index_o = -1;
-			}
-		}
-	} while (!$realbrace);
+    # get next opening brace
+    do {
+        $realbrace = 1;
+        $index_o = index $text, '{', $pos_o;
 
-	# get next closing brace
-	do {
-		$realbrace = 1;
-		$index_c = index $text, '}', $pos_c;
+        if ($index_o != -1) {
+            $pos_o = $index_o + 1;
 
-		if ($index_c != -1) {
-			$pos_c = $index_c + 1;
+            # make sure this brace isn't escaped. this is imperfect.
+            #
+            my $prevchar = ($index_o - 1 >= 0) ? 
+                (substr $text, $index_o - 1, 1) : '';
+            my $pprevchar = ($index_o - 2 >= 0) ?
+                (substr $text, $index_o - 2, 1) : '';
 
-			# make sure this brace isn't escaped. this is imperfect.
-			#
-			my $prevchar = ($index_c - 1 >= 0) ? 
-				(substr $text, $index_c - 1, 1) : '';
-			my $pprevchar = ($index_c - 2 >= 0) ?
-				(substr $text, $index_c - 2, 1) : '';
-				
-			if ($prevchar eq '\\' && $pprevchar ne '\\') {
-				$realbrace = 0;
-				$index_c = -1;
-			}
-		}
-	} while (!$realbrace);
- 
-	# handle all find cases
-	return (-1, '') if ($index_o == -1 && $index_c == -1);
-	return ($index_o, '{') if ($index_c == -1 || 
-		($index_o != -1 && $index_o < $index_c));
+            if ($prevchar eq '\\' && $pprevchar ne '\\') {
+                $realbrace = 0;
+                $index_o = -1;
+            }
+        }
+    } while (!$realbrace);
 
-	return ($index_c, '}') if ($index_o == -1 || $index_c < $index_o);
+    # get next closing brace
+    do {
+        $realbrace = 1;
+        $index_c = index $text, '}', $pos_c;
+
+        if (substr($text, $index_c - 1, 1) eq ' ') {
+            $pos_c = $index_c + 1;
+            $index_c = -1;
+        }
+
+        if ($index_c != -1) {
+            $pos_c = $index_c + 1;
+
+            # make sure this brace isn't escaped. this is imperfect.
+            #
+            my $prevchar = ($index_c - 1 >= 0) ? 
+                (substr $text, $index_c - 1, 1) : '';
+            my $pprevchar = ($index_c - 2 >= 0) ?
+                (substr $text, $index_c - 2, 1) : '';
+
+            if ($prevchar eq '\\' && $pprevchar ne '\\') {
+                $realbrace = 0;
+                $index_c = -1;
+            }
+        }
+    } while (!$realbrace);
+
+    # handle all find cases
+    return (-1, '') if ($index_o == -1 && $index_c == -1);
+    return ($index_o, '{') if ($index_c == -1 || 
+        ($index_o != -1 && $index_o < $index_c));
+
+    return ($index_c, '}') if ($index_o == -1 || $index_c < $index_o);
 }
 
 
@@ -1377,51 +1382,51 @@ sub findbrace {
 # at the first non-blank node. (ie, not a comment or whitespace TEXT node.
 #
 sub skipBlankNodes {
-	my $tree = shift;
-	my $i = shift;
+    my $tree = shift;
+    my $i = shift;
 
-	while ($tree->[$i]->{type} eq 'COMMENT' ||
-		($tree->[$i]->{type} eq 'TEXT' &&
-		$tree->[$i]->{content} =~ /^\s*$/s)) { 
-					
-		$i++; 
-	}
+    while ($tree->[$i]->{type} eq 'COMMENT' ||
+        ($tree->[$i]->{type} eq 'TEXT' &&
+        $tree->[$i]->{content} =~ /^\s*$/s)) { 
 
-	return $i;
+        $i++;
+    }
+
+    return $i;
 }
 
 # is the passed-in node a valid parameter node? for this to be true, it must
 # either be a GROUP or a position = inner command.
 #
 sub validParamNode {
-	my $node = shift;
-	
-	return 1 if ($node->{type} eq 'GROUP' || 
-		($node->{type} eq 'COMMAND' && $node->{position} eq 'inner'));
+    my $node = shift;
 
-	return 0;
+    return 1 if ($node->{type} eq 'GROUP' || 
+        ($node->{type} eq 'COMMAND' && $node->{position} eq 'inner'));
+
+    return 0;
 }
 
 # duplicate a valid param node.	This means for a group, copy the child tree.
 # for a command, make a new tree with just the command node and its child tree.
 #
 sub duplicateParam {
-	my $node = shift;
+    my $node = shift;
 
-	if ($node->{type} eq 'GROUP') {
-		return $node->{children}->copy();
-	}
-	elsif ($node->{type} eq 'COMMAND') {
-		
-		my $subtree = $node->{children}->copy(); # copy child subtree
-		my $nodecopy = $node->copy();			# make a new node with old data
-		$nodecopy->{children} = $subtree;	# set the child pointer to new subtree
-		
-		# return a new tree with the new node (subtree) as its only element
-		return Tree->new([$nodecopy]);
-	}
+    if ($node->{type} eq 'GROUP') {
+        return $node->{children}->copy();
+    }
+    elsif ($node->{type} eq 'COMMAND') {
 
-	return undef;
+        my $subtree = $node->{children}->copy(); # copy child subtree
+        my $nodecopy = $node->copy(); # make a new node with old data
+        $nodecopy->{children} = $subtree; # set the child pointer to new subtree
+
+        # return a new tree with the new node (subtree) as its only element
+        return Tree->new([$nodecopy]);
+    }
+
+    return undef;
 }
 
 # make a mapping from a newenvironment fragment
@@ -1431,64 +1436,64 @@ sub duplicateParam {
 # \newenvironment{name}[nparams]?{beginTeX}{endTeX}
 #
 sub makeEnvMapping {
-	my $tree = shift;
-	my $i = shift;
+    my $tree = shift;
+    my $i = shift;
 
-	return undef if ($tree->[$i]->{type} ne 'COMMAND' ||
-		($tree->[$i]->{command} ne 'newenvironment' &&
-		$tree->[$i]->{command} ne 'renewenvironment'));
-	
-	# figure out command (first child, text node)
-	my $command = $tree->[$i]->{children}->[0]->{content}; 
-	if ($command =~ /^\s*\\(\S+)\s*$/) {
-		$command = $1;
-	}
+    return undef if ($tree->[$i]->{type} ne 'COMMAND' ||
+        ($tree->[$i]->{command} ne 'newenvironment' &&
+        $tree->[$i]->{command} ne 'renewenvironment'));
 
-	my $next = $i+1;
-	
-	# figure out number of params
-	my $nparams = 0;
-	if ($tree->[$next]->{type} eq 'TEXT') {
-		my $text = $tree->[$next]->{content};
+    # figure out command (first child, text node)
+    my $command = $tree->[$i]->{children}->[0]->{content}; 
+    if ($command =~ /^\s*\\(\S+)\s*$/) {
+        $command = $1;
+    }
 
-		if ($text =~ /^\s*\[\s*([0-9])+\s*\]\s*$/) {
-			$nparams = $1;
-		}
+    my $next = $i+1;
 
-		$next++;
-	}
+    # figure out number of params
+    my $nparams = 0;
+    if ($tree->[$next]->{type} eq 'TEXT') {
+        my $text = $tree->[$next]->{content};
 
-	# default templates-- just repeat the declarations
-	#
-	my ($btemplate) = basicparse("\\begin{$command}", 2, 0);
-	my ($etemplate) = basicparse("\\end{$command}", 2, 0);
-	
-	my $endpos = $next;
+        if ($text =~ /^\s*\[\s*([0-9])+\s*\]\s*$/) {
+            $nparams = $1;
+        }
 
-	# get two group subtrees... one for the begin and one for the end 
-	# templates.	we only ignore whitespace TEXT nodes and comments
-	#
-	$next = skipBlankNodes($tree, $next);
-	if (validParamNode($tree->[$next])) {
-		$btemplate = duplicateParam($tree->[$next]);
-		$next++;
-		
-		$next = skipBlankNodes($tree, $next);
-		
-		if (validParamNode($tree->[$next])) {
-			$etemplate = duplicateParam($tree->[$next]);
-			$endpos = $next;
-		}
-	}
+        $next++;
+    }
 
-	# build and return the mapping hash
-	#
-	return {name => $command,
-		nparams => $nparams,
-		btemplate => $btemplate,	# begin template
-		etemplate => $etemplate,	# end template
-		skip => $endpos - $i,
-		type => 'environment'};
+    # default templates-- just repeat the declarations
+    #
+    my ($btemplate) = basicparse("\\begin{$command}", 2, 0);
+    my ($etemplate) = basicparse("\\end{$command}", 2, 0);
+
+    my $endpos = $next;
+
+    # get two group subtrees... one for the begin and one for the end 
+    # templates. we only ignore whitespace TEXT nodes and comments
+    #
+    $next = skipBlankNodes($tree, $next);
+    if (validParamNode($tree->[$next])) {
+        $btemplate = duplicateParam($tree->[$next]);
+        $next++;
+
+        $next = skipBlankNodes($tree, $next);
+
+        if (validParamNode($tree->[$next])) {
+            $etemplate = duplicateParam($tree->[$next]);
+            $endpos = $next;
+        }
+    }
+
+    # build and return the mapping hash
+    #
+    return {name => $command,
+        nparams => $nparams,
+        btemplate => $btemplate,    # begin template
+        etemplate => $etemplate,    # end template
+        skip => $endpos - $i,
+        type => 'environment'};
 }
 
 # make a mapping from a newcommand fragment 
@@ -1499,49 +1504,49 @@ sub makeEnvMapping {
 # \newcommand{\name}[nparams]?{anyTeX}
 #
 sub makeMapping {
-	my $tree = shift;
-	my $i = shift;
+    my $tree = shift;
+    my $i = shift;
 
-	return undef if ($tree->[$i]->{type} ne 'COMMAND' ||
-		($tree->[$i]->{command} ne 'newcommand' &&
-		$tree->[$i]->{command} ne 'renewcommand'));
+    return undef if ($tree->[$i]->{type} ne 'COMMAND' ||
+        ($tree->[$i]->{command} ne 'newcommand' &&
+        $tree->[$i]->{command} ne 'renewcommand'));
 
-	# figure out command (first child, text node)
-	my $command = $tree->[$i]->{children}->[0]->{content}; 
-	if ($command =~ /^\s*\\(\S+)\s*$/) {
-		$command = $1;
-	}
+    # figure out command (first child, text node)
+    my $command = $tree->[$i]->{children}->[0]->{content}; 
+    if ($command =~ /^\s*\\(\S+)\s*$/) {
+        $command = $1;
+    }
 
-	my $next = $i+1;
-	
-	# figure out number of params
-	my $nparams = 0;
-	if ($tree->[$next]->{type} eq 'TEXT') {
-		my $text = $tree->[$next]->{content};
+    my $next = $i+1;
 
-		if ($text =~ /^\s*\[\s*([0-9])+\s*\]\s*$/) {
-			$nparams = $1;
-		}
+    # figure out number of params
+    my $nparams = 0;
+    if ($tree->[$next]->{type} eq 'TEXT') {
+        my $text = $tree->[$next]->{content};
 
-		$next++;
-	}
+        if ($text =~ /^\s*\[\s*([0-9])+\s*\]\s*$/) {
+            $nparams = $1;
+        }
 
-	# grab subtree template (array ref)
-	#
-	my $template;
-	if ($tree->[$next]->{type} eq 'GROUP') {
-		$template = $tree->[$next]->{children}->copy();
-	} else {
-		return undef;
-	}
+        $next++;
+    }
 
-	# build and return the mapping hash
-	#
-	return {name => $command,
-		nparams => $nparams,
-		template => $template,
-		skip => $next - $i,
-		type => 'command'};
+    # grab subtree template (array ref)
+    #
+    my $template;
+    if ($tree->[$next]->{type} eq 'GROUP') {
+        $template = $tree->[$next]->{children}->copy();
+    } else {
+        return undef;
+    }
+
+    # build and return the mapping hash
+    #
+    return {name => $command,
+        nparams => $nparams,
+        template => $template,
+        skip => $next - $i,
+        type => 'command'};
 }
 
 # this sub is the main entry point for the sub that actually takes a set of
@@ -1550,70 +1555,70 @@ sub makeMapping {
 # parameters (along with the initial command invocation)
 #
 sub applyParamsToTemplate {
-	my $template = shift;
-	my @params = @_;
+    my $template = shift;
+    my @params = @_;
 
-	# have to copy the template to a freshly allocated tree
-	#
-	my $applied = $template->copy();
+    # have to copy the template to a freshly allocated tree
+    #
+    my $applied = $template->copy();
 
-	# now recursively apply the params.
-	#
-	applyParamsToTemplate_r($applied, @params);
+    # now recursively apply the params.
+    #
+    applyParamsToTemplate_r($applied, @params);
 
-	return $applied;
+    return $applied;
 }
 
 # recursive helper for above
 #
 sub applyParamsToTemplate_r {
-	my $template = shift;
-	my @params = @_;
+    my $template = shift;
+    my @params = @_;
 
-	for (my $i = 0; $i < @$template; $i++) {
+    for (my $i = 0; $i < @$template; $i++) {
 
-		my $node = $template->[$i];
+        my $node = $template->[$i];
 
-		if ($node->{type} eq 'TEXT') {
+        if ($node->{type} eq 'TEXT') {
 
-			my $text = $node->{content};
-		
-			# find occurrences of the parameter flags
-			#
-			if ($text =~ /(#([0-9]+))/) {
-				 
-				my $all = $1;
-				my $num = $2;
+            my $text = $node->{content};
 
-				# get the index of the flag we just found
-				#
-				my $idx = index $text, $all, 0;
+            # find occurrences of the parameter flags
+            #
+            if ($text =~ /(#([0-9]+))/) {
 
-				# split the node on the location of the flag
-				#
-				my ($leftnode, $rightnode) = $node->split($idx, $idx + length($all) - 1);
+                my $all = $1;
+                my $num = $2;
 
-				# make a copy of the param we want
-				#
-				my $param = $params[$num - 1]->copy();
+                # get the index of the flag we just found
+                #
+                my $idx = index $text, $all, 0;
 
-				# splice the new text nodes, along with the parameter subtree, into
-				# the old location
-				#
-				splice @$template, $i, 1, $leftnode, @$param, $rightnode;
+                # split the node on the location of the flag
+                #
+                my ($leftnode, $rightnode) = $node->split($idx, $idx + length($all) - 1);
 
-				# skip forward to where $rightnode is in $template on next iteration
-				#
-				$i += scalar @$param;
-			}
-		}
+                # make a copy of the param we want
+                #
+                my $param = $params[$num - 1]->copy();
 
-		# recur
-		elsif (defined $node->{children}) {
+                # splice the new text nodes, along with the parameter subtree, into
+                # the old location
+                #
+                splice @$template, $i, 1, $leftnode, @$param, $rightnode;
 
-			applyParamsToTemplate_r($node->{children}, @params);
-		}
-	}
+                # skip forward to where $rightnode is in $template on next iteration
+                #
+                $i += scalar @$param;
+            }
+        }
+
+        # recur
+        elsif (defined $node->{children}) {
+
+            applyParamsToTemplate_r($node->{children}, @params);
+        }
+    }
 }
 
 
@@ -1622,96 +1627,96 @@ sub applyParamsToTemplate_r {
 # '%' prefixed LaTeX comment lines
 #
 sub getTextAndCommentNodes {
-	my $text = shift;
-	my $begins = shift;
-	my $ends = shift;
+    my $text = shift;
+    my $begins = shift;
+    my $ends = shift;
 
-	my $nodetext = substr $text, $begins, $ends - $begins;
+    my $nodetext = substr $text, $begins, $ends - $begins;
 
-	#warn "getTextAndCommentNodes: looking at [$nodetext]";
+    #warn "getTextAndCommentNodes: looking at [$nodetext]";
 
-	my @lines = split (/((?: *(?<!\\)\%[^\n]*\n)+)/m, $nodetext);
- 
-	my @nodes = ();
+    my @lines = split (/((?: *(?<!\\)\%[^\n]*\n)+)/m, $nodetext);
 
-	my $startpos = 0;
-	my @out = (); 
-	my $comment = 0;	# comment mode
-	my $first = 1;
+    my @nodes = ();
 
-	foreach my $line (@lines) {
+    my $startpos = 0;
+    my @out = ();
+    my $comment = 0; # comment mode
+    my $first = 1;
 
-		my $mode;
-				
-		# set current mode based on whether this is a comment
-		if ($line =~ /^\s*%/) {
-			$mode = 1;		# comment 
-		} else {
-			$mode = 0;		# not-comment (regular text)
-		}
-				
-		# if mode stays the same, add to output and do nothing
-		if ($mode == $comment || $first) { 
-					
-			push @out, $line;
+    foreach my $line (@lines) {
 
-			# handle turning off initialization stuff
-			if ($first) {
-				$first = 0;
-				$comment = $mode;
-			}
-		}
+        my $mode;
 
-		# if mode changes, make new node from current chunk, change mode
-		# flag, and start a new chunk
-		else {
-			my $output = join ('', @out);
-			
-			my $newnode = Node->new( 
-				{type => $comment ? 'COMMENT' : 'TEXT',
-				 start => $begins + $startpos,
-				 end => $begins + $startpos + length($output) - 1,
-				 content => $output});
+        # set current mode based on whether this is a comment
+        if ($line =~ /^\s*\%/ && $nodetext !~ /\\begin\{verbatim\}.*\Q$line\E.*\\end\{verbatim\}/s) {
+            $mode = 1;  # comment
+        } else {
+            $mode = 0;  # not-comment (regular text)
+        }
 
-			push @nodes, $newnode;
+        # if mode stays the same, add to output and do nothing
+        if ($mode == $comment || $first) { 
 
-			$startpos += length($output);	 # update start position 
-			@out = ($line);
+            push @out, $line;
 
-			$comment = $mode;
-		}
-	}
+            # handle turning off initialization stuff
+            if ($first) {
+                $first = 0;
+                $comment = $mode;
+            }
+        }
 
-	# make node from last chunk 
-	my $output = join('', @out);
-	
-	my $newnode = Node->new(
-		{type => $comment ? 'COMMENT' : 'TEXT',
-		 start => $begins + $startpos,
-		 end => $begins + $startpos + length($output) - 1,
-		 content => $output});
+        # if mode changes, make new node from current chunk, change mode
+        # flag, and start a new chunk
+        else {
+        my $output = join ('', @out);
 
-	push @nodes, $newnode;
+            my $newnode = Node->new( 
+                {type => $comment ? 'COMMENT' : 'TEXT',
+                 start => $begins + $startpos,
+                 end => $begins + $startpos + length($output) - 1,
+                 content => $output});
 
-	return @nodes;
+            push @nodes, $newnode;
+
+            $startpos += length($output); # update start position 
+            @out = ($line);
+
+            $comment = $mode;
+        }
+    }
+
+    # make node from last chunk 
+    my $output = join('', @out);
+
+    my $newnode = Node->new(
+        {type => $comment ? 'COMMENT' : 'TEXT',
+         start => $begins + $startpos,
+         end => $begins + $startpos + length($output) - 1,
+         content => $output});
+
+    push @nodes, $newnode;
+
+    return @nodes;
 }
 
-# Read in the contents of a text file on disk.	Return in string scalar.
+# Read in the contents of a text file on disk. Return in string scalar.
 #
 sub readFile {
-	my $file = shift || '/dev/stdin';
+    my $file = shift || '/dev/stdin';
 
-	my $contents = "";
-	
-	open INFILE, $file or return "";
+    my $contents = "";
 
-	while (my $line = <INFILE>) {
-		$contents .= $line;
-	}
-	
-	close INFILE;
+    open INFILE, $file or return "";
 
-	return $contents;
+    while (my $line = <INFILE>) {
+        $contents .= $line;
+    }
+
+    close INFILE;
+
+    return $contents;
 }
 
 1;

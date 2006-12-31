@@ -2,7 +2,7 @@
 #
 # LaTeX::TOM (TeX Object Model)
 #
-# Version 0.4
+# Version 0.5
 #
 # ----------------------------------------------------------------------------
 #
@@ -84,7 +84,7 @@
 
 package LaTeX::TOM;
 
-our $VERSION = '0.4';
+our $VERSION = '0.5';
 
 use strict;
 use vars qw{%INNERCMDS %MATHENVS %MATHBRACKETS %MATHBRACKETS %BRACELESS %TEXTENVS $PARSE_ERRORS_FATAL};
@@ -212,9 +212,9 @@ use vars qw{%INNERCMDS %MATHENVS %MATHBRACKETS %MATHBRACKETS %BRACELESS %TEXTENV
 # these form sets of simple mode delimiters
 #
 %MATHBRACKETS = (
-	'$$' => '$$',
-  '$' => '$',
-#	'\[' => '\]',   # these are problematic and handled separately now
+    '$$' => '$$',
+    '$' => '$',
+# '\[' => '\]',   # these are problematic and handled separately now
 # '\(' => '\)',
 );
 

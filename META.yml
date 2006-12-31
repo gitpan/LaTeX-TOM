@@ -1,6 +1,6 @@
 ---
 name: LaTeX-TOM
-version: 0.4
+version: 0.5
 author:
   - 'Aaron Krowne <akrowne@vt.edu.org>'
 abstract: A module for parsing, analyzing, and manipulating LaTeX documents.
@@ -14,6 +14,6 @@ meta-spec:
 provides:
   LaTeX::TOM:
     file: lib/LaTeX/TOM.pm
-    version: 0.4
+    version: 0.5
 resources:
   license: http://dev.perl.org/licenses/
