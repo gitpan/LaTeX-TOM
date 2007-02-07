@@ -11,3 +11,4 @@ MANIFEST			This list of files
 META.yml
 README
 t/00-load.t
+TODO
