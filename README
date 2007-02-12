@@ -133,6 +133,9 @@ COMPONENTS
     convenient methods, described in the next section.
 
 METHODS
+  LaTeX::TOM
+    new Instantiate a new parser object.
+
     In this section all of the methods for each of the components are listed
     and described.
 
