@@ -766,7 +766,7 @@ sub _stage5_r {
         } # loop over text blocks
 
         if ($leftpos != -1) {
-            my $startpos = $tree->{node}[$leftidx]->{start};	# get text start position 
+            my $startpos = $tree->{nodes}[$leftidx]->{start};   # get text start position
             if ($parser->{PARSE_ERRORS_FATAL} == 1) {
                 die "parse error: unmatched '$left' at ".($startpos+$leftpos).".";
             } elsif ($parser->{PARSE_ERRORS_FATAL} == 0) {
@@ -1024,7 +1024,7 @@ sub _applyMappings {
 
     my $tree = shift;
 
-    for (my $i = 0; $i < @{$tree->{node}}; $i++) {
+    for (my $i = 0; $i < @{$tree->{nodes}}; $i++) {
 
         my $prev = $tree->{nodes}[$i-1];
         my $node = $tree->{nodes}[$i];
